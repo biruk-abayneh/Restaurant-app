@@ -12,6 +12,7 @@ import ManagerDashboard from './pages/manager/ManagerDashboard';
 import MenuManager from './pages/manager/MenuManager';
 import StaffManager from './pages/manager/StaffManager';
 import KDS from './pages/kitchen/KDS';
+import CreateFirstManager from './pages/CreateFirstManager';
 
 import { RequireManager, RequireServer } from './components/ProtectedRoute';
 
@@ -26,6 +27,7 @@ function App() {
               <Route path="/" element={<Login />} />
               <Route path="/login" element={<Login />} />
               <Route path="/kds" element={<KDS />} />
+              <Route path="/create-first-manager" element={<CreateFirstManager />} />
 
               {/* Server */}
               <Route
