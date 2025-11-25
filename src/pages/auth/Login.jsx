@@ -1,136 +1,110 @@
-// src/pages/auth/Login.jsx
+// src/pages/Login.jsx — FINAL WORKING SUPABASE LOGIN
 import React, { useState } from 'react';
-import { useAuth } from '../../context/AuthContext';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  
   const { login } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
-    const result = login(username, password);
-
+    const result = await login(username, password);
     if (result.success) {
-      const from = location.state?.from?.pathname;
-      const defaultPath = username === 'admin' ? '/manager/menu' : '/active-order';
-      navigate(from || defaultPath, { replace: true });
+      navigate('/manager'); // or '/active-order' based on role
     } else {
-      setError('Invalid username or password');
+      setError(result.error || 'Invalid credentials');
     }
   };
 
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      background: 'linear-gradient(135deg, #1e293b, #0f172a)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: '1rem'
+      padding: '2rem'
     }}>
       <div style={{
         background: 'white',
         padding: '3rem',
-        borderRadius: '16px',
-        boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+        borderRadius: '24px',
+        boxShadow: '0 25px 50px rgba(0,0,0,0.3)',
         width: '100%',
         maxWidth: '420px'
       }}>
         <h1 style={{
-          fontSize: '2.8rem',
-          fontWeight: 'bold',
           textAlign: 'center',
+          fontSize: '3rem',
           marginBottom: '2rem',
-          color: '#1f2937'
+          color: '#1e293b',
+          fontWeight: '900'
         }}>
           Restaurant POS
         </h1>
 
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
-              Username
-            </label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="admin / server1 / server2"
-              required
-              style={{
-                width: '100%',
-                padding: '0.875rem',
-                borderRadius: '12px',
-                border: '2px solid #e5e7eb',
-                fontSize: '1rem'
-              }}
-            />
-          </div>
-
-          <div style={{ marginBottom: '2rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '600' }}>
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="admin → admin | server → 123"
-              required
-              style={{
-                width: '100%',
-                padding: '0.875rem',
-                borderRadius: '12px',
-                border: '2px solid #e5e7eb',
-                fontSize: '1rem'
-              }}
-            />
-          </div>
+        <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '1.5rem' }}>
+          <input
+            type="text"
+            placeholder="Username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+            style={{
+              padding: '1.2rem',
+              fontSize: '1.2rem',
+              borderRadius: '12px',
+              border: '2px solid #e2e8f0',
+              outline: 'none'
+            }}
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            style={{
+              padding: '1.2rem',
+              fontSize: '1.2rem',
+              borderRadius: '12px',
+              border: '2px solid #e2e8f0',
+              outline: 'none'
+            }}
+          />
 
           {error && (
-            <div style={{
-              background: '#fee2e2',
-              color: '#991b1b',
-              padding: '1rem',
-              borderRadius: '12px',
-              textAlign: 'center',
-              marginBottom: '1.5rem'
-            }}>
+            <p style={{ color: '#dc2626', textAlign: 'center', fontWeight: 'bold' }}>
               {error}
-            </div>
+            </p>
           )}
 
           <button
             type="submit"
             style={{
-              width: '100%',
-              padding: '1rem',
+              padding: '1.5rem',
               background: '#10b981',
               color: 'white',
-              fontSize: '1.3rem',
-              fontWeight: 'bold',
               border: 'none',
               borderRadius: '12px',
+              fontSize: '1.5rem',
+              fontWeight: 'bold',
               cursor: 'pointer'
             }}
           >
-            Login
+            LOGIN
           </button>
         </form>
 
-        <div style={{ marginTop: '2rem', fontSize: '0.9rem', color: '#6b7280', textAlign: 'center' }}>
-          <p><strong>Demo Logins:</strong></p>
-          <p>Manager: admin / admin</p>
-          <p>Server: server1 or server2 / 123</p>
-        </div>
+        <p style={{ textAlign: 'center', marginTop: '2rem', color: '#64748b' }}>
+          First time? Create manager at /create-first-manager
+        </p>
       </div>
     </div>
   );
