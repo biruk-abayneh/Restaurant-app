@@ -1,0 +1,10 @@
+{
+  "build": {
+    "env": {
+      "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
+      "NPM_CONFIG_STRICT_PEER_DEPENDENCIES": "false"
+    }
+  },
+  "installCommand": "npm install --legacy-peer-deps",
+  "buildCommand": "npm run build"
+}
