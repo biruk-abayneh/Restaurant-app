@@ -1,7 +1,5 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "build",
-  "framework": "create-react-app",
-  "installCommand": "npm install --legacy-peer-deps --foreground-scripts",
-  "ignoreCommand": "exit 0"
+  "framework": "create-react-app"
 }
