@@ -26,6 +26,8 @@ export function AuthProvider({ children }) {
       .eq('username', username)
       .single();
 
+      console.log("Supabase returned:", data, error);
+
     if (error || !data) {
       setLoading(false);
       return { success: false, error: 'User not found' };
@@ -40,8 +42,10 @@ export function AuthProvider({ children }) {
       id: data.id,
       name: data.name,
       username: data.username,
-      role: data.role
+      role: data.role || 'server'
     };
+
+    console.log("Logging in with userData:", userData);
 
     localStorage.setItem('pos-user', JSON.stringify(userData));
     setUser(userData);
