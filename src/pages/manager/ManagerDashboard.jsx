@@ -30,7 +30,7 @@ export default function ManagerDashboard() {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
-          <Link to="/."
+          <Link to="/manager/menu"
             style={{ textDecoration: 'none' }}
           >
             <div style={{

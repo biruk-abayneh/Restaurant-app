@@ -2,6 +2,7 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { MenuProvider } from './context/MenuContext';
 import Login from './pages/auth/Login';
 import CreateFirstManager from './pages/CreateFirstManager';
 import ManagerDashboard from './pages/manager/ManagerDashboard';
@@ -24,40 +25,42 @@ function App() {
   return (
     <Router>
       <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/create-first-manager" element={<CreateFirstManager />} />
+        <MenuProvider>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/create-first-manager" element={<CreateFirstManager />} />
 
-          {/* Manager Pages */}
-          <Route path="/manager" element={
-            <ProtectedRoute allowedRoles={['manager']}>
-              <ManagerDashboard />
-            </ProtectedRoute>
-          } />
-          <Route path="/manager/menu" element={
-            <ProtectedRoute allowedRoles={['manager']}>
-              <MenuManager />
-            </ProtectedRoute>
-          } />
-          <Route path="/manager/staff" element={
-            <ProtectedRoute allowedRoles={['manager']}>
-              <StaffManager />
-            </ProtectedRoute>
-          } />
+            {/* Manager Pages */}
+            <Route path="/manager" element={
+              <ProtectedRoute allowedRoles={['manager']}>
+                <ManagerDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/manager/menu" element={
+              <ProtectedRoute allowedRoles={['manager']}>
+                <MenuManager />
+              </ProtectedRoute>
+            } />
+            <Route path="/manager/staff" element={
+              <ProtectedRoute allowedRoles={['manager']}>
+                <StaffManager />
+              </ProtectedRoute>
+            } />
 
-          {/* Server Pages */}
-          <Route path="/active-order" element={
-            <ProtectedRoute allowedRoles={['server', 'manager']}>
-              <ActiveOrder />
-            </ProtectedRoute>
-          } />
+            {/* Server Pages */}
+            <Route path="/active-order" element={
+              <ProtectedRoute allowedRoles={['server', 'manager']}>
+                <ActiveOrder />
+              </ProtectedRoute>
+            } />
 
-          {/* Kitchen */}
-          <Route path="/kds" element={<KDS />} />
+            {/* Kitchen */}
+            <Route path="/kds" element={<KDS />} />
 
-          {/* Default */}
-          <Route path="/" element={<Navigate to="/login" replace />} />
-        </Routes>
+            {/* Default */}
+            <Route path="/" element={<Navigate to="/login" replace />} />
+          </Routes>
+        </MenuProvider>
       </AuthProvider>
     </Router>
   );
