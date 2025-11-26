@@ -8,39 +8,34 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Auto-login from localStorage (works offline after first login)
   useEffect(() => {
-    // Check active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    // Listen for auth changes
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => listener.subscription.unsubscribe();
+    const saved = localStorage.getItem('pos-user');
+    if (saved) {
+      setUser(JSON.parse(saved));
+    }
+    setLoading(false);
   }, []);
 
   const login = async (username, password) => {
-  try {
+    setLoading(true);
+
     const { data, error } = await supabase
       .from('staff')
-      .select('id, name, username, role')
+      .select('id, name, username, role, password')
       .eq('username', username)
       .single();
 
     if (error || !data) {
+      setLoading(false);
       return { success: false, error: 'User not found' };
     }
 
     if (data.password !== password) {
+      setLoading(false);
       return { success: false, error: 'Wrong password' };
     }
 
-    // SUCCESS — store in localStorage + context (no Supabase Auth needed)
     const userData = {
       id: data.id,
       name: data.name,
@@ -50,21 +45,18 @@ export function AuthProvider({ children }) {
 
     localStorage.setItem('pos-user', JSON.stringify(userData));
     setUser(userData);
-
+    setLoading(false);
     return { success: true };
-  } catch (err) {
-    console.error("Login error:", err);
-    return { success: false, error: 'Login failed' };
-  }
-};
+  };
 
-const logout = () => {
-  localStorage.removeItem('pos-user');
-  setUser(null);
-};
+  const logout = () => {
+    localStorage.removeItem('pos-user');
+    setUser(null);
+  };
+
   return (
     <AuthContext.Provider value={{ user, login, logout, loading }}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 }
