@@ -15,10 +15,20 @@ export default function Login() {
     setError('');
 
     const result = await login(username, password);
+
     if (result.success) {
-      navigate('/manager'); // or '/active-order' based on role
+    const user = JSON.parse(localStorage.getItem('pos-user') || '{}');
+
+      // CORRECT REDIRECT BASED ON ROLE — THIS IS WHAT WAS MISSING
+      if (user.role === 'manager') {
+        navigate('/manager');
+      } else if (user.role === 'server') {
+        navigate('/active-order');
+      } else {
+        navigate('/active-order'); // default fallback
+      }
     } else {
-      setError(result.error || 'Invalid credentials');
+      setError(result.error || 'Invalid username or password');
     }
   };
 
