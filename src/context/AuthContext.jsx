@@ -25,28 +25,43 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = async (username, password) => {
-    // Custom login via staff table
+  try {
     const { data, error } = await supabase
       .from('staff')
-      .select('*')
+      .select('id, name, username, role')
       .eq('username', username)
       .single();
 
-    if (error || !data || data.password !== password) {
-      return { success: false, error: 'Invalid credentials' };
+    if (error || !data) {
+      return { success: false, error: 'User not found' };
     }
 
-    // Sign in anonymously with user metadata
-    const { error: signInError } = await supabase.auth.signInAnonymously({
-      options: { data: { name: data.name, role: data.role, staff_id: data.id } }
-    });
+    if (data.password !== password) {
+      return { success: false, error: 'Wrong password' };
+    }
 
-    if (!signInError) setUser({ ...data, role: data.role });
-    return { success: !signInError };
-  };
+    // SUCCESS — store in localStorage + context (no Supabase Auth needed)
+    const userData = {
+      id: data.id,
+      name: data.name,
+      username: data.username,
+      role: data.role
+    };
 
-  const logout = () => supabase.auth.signOut();
+    localStorage.setItem('pos-user', JSON.stringify(userData));
+    setUser(userData);
 
+    return { success: true };
+  } catch (err) {
+    console.error("Login error:", err);
+    return { success: false, error: 'Login failed' };
+  }
+};
+
+const logout = () => {
+  localStorage.removeItem('pos-user');
+  setUser(null);
+};
   return (
     <AuthContext.Provider value={{ user, login, logout, loading }}>
       {!loading && children}
