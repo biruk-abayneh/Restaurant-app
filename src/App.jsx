@@ -14,7 +14,7 @@ import KDS from './pages/kitchen/KDS';
 function ProtectedRoute({ children, allowedRoles = ['manager', 'server'] }) {
   const { user, loading } = useAuth();
 
-  if (loading) return <div style={{ padding: '3rem', textAlign: 'center', fontSize: '2rem' }}>Loading...</div>;
+  if (loading) return <div style={{ padding: '3rem', textAlign: 'center', fontSize: '2rem' }}> Loading...</div>;
   if (!user) return <Navigate to="/login" />;
   if (!allowedRoles.includes(user.role)) return <Navigate to="/login" />;
 
