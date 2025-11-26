@@ -1,177 +1,94 @@
 // src/pages/server/ActiveOrder.jsx
 import React, { useState, useEffect } from 'react';
-import { useOrder } from '../../context/OrderContext';
-import { useAuth } from '../../context/AuthContext';
-import { useMenu } from '../../context/MenuContext';
+import { supabase } from '../../lib/supabase';
 
 export default function ActiveOrder() {
-  const { orders = [], addOrder, updateOrder } = useOrder(); // ← Safe default
-  const { user } = useAuth();
-  const { menu } = useMenu();
-
+  const [orders, setOrders] = useState([]);
   const [selectedTable, setSelectedTable] = useState(null);
   const [currentOrder, setCurrentOrder] = useState({ items: [], note: '' });
-  const [isEditing, setIsEditing] = useState(false);
-  const [editingOrderId, setEditingOrderId] = useState(null);
 
-  // Load existing order
+  // Fetch all active orders
   useEffect(() => {
-    if (selectedTable && orders.length > 0) {
-      const existing = orders.find(o => o.tableNumber === selectedTable && o.status === 'new');
-      if (existing) {
-        setCurrentOrder({ items: existing.items || [], note: existing.orderNote || '' });
-        setIsEditing(true);
-        setEditingOrderId(existing.id);
-      } else {
-        setCurrentOrder({ items: [], note: '' });
-        setIsEditing(false);
-        setEditingOrderId(null);
-      }
-    }
-  }, [selectedTable, orders]);
+    fetchOrders();
 
-  const sendToKitchen = () => {
-    if (currentOrder.items.length === 0) return alert('Add at least one item');
+    const channel = supabase
+      .channel('orders-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        fetchOrders();
+      })
+      .subscribe();
 
-    const orderData = {
-      id: editingOrderId || Date.now().toString(),
-      tableNumber: selectedTable,
+    return () => supabase.removeChannel(channel);
+  }, []);
+
+  const fetchOrders = async () => {
+    const { data } = await supabase
+      .from('orders')
+      .select('*')
+      .in('status', ['new', 'in-progress'])
+      .order('created_at', { ascending: true });
+
+    setOrders(data || []);
+  };
+
+  const sendOrder = async () => {
+    if (currentOrder.items.length === 0) return;
+
+    await supabase.from('orders').insert({
+      table_number: selectedTable,
       items: currentOrder.items,
-      orderNote: currentOrder.note,
+      order_note: currentOrder.note,
       status: 'new',
-      timestamp: new Date().toISOString(),
-      serverName: user?.name || 'Server',
-      modified: isEditing,
-      modifiedBy: isEditing ? user?.name : undefined
-    };
-
-    if (isEditing) {
-      updateOrder(editingOrderId, orderData);
-      alert(`Order updated & resent to kitchen!`);
-    } else {
-      addOrder(orderData);
-      alert(`Order sent to kitchen for Table ${selectedTable}!`);
-    }
+      server_name: 'Server' // You can get this from user later
+    });
 
     setCurrentOrder({ items: [], note: '' });
     setSelectedTable(null);
-    setIsEditing(false);
-    setEditingOrderId(null);
   };
-
-  const addItem = (item) => {
-    setCurrentOrder(prev => ({
-      ...prev,
-      items: [...prev.items, { ...item, qty: 1 }]
-    }));
-  };
-
-  const removeItem = (index) => {
-    setCurrentOrder(prev => ({
-      ...prev,
-      items: prev.items.filter((_, i) => i !== index)
-    }));
-  };
-
-  if (!selectedTable) {
-    return (
-      <div style={{ padding: '2rem', textAlign: 'center' }}>
-        <h1>Active Order — {user?.name}</h1>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '1rem', maxWidth: '800px', margin: '3rem auto' }}>
-          {[1,2,3,4,5,6,7,8,9,10].map(n => {
-            const hasOrder = orders.some(o => o.tableNumber === n && o.status === 'new');
-            return (
-              <button
-                key={n}
-                onClick={() => setSelectedTable(n)}
-                style={{
-                  padding: '3rem',
-                  fontSize: '2rem',
-                  background: hasOrder ? '#fee2e2' : '#ecfdf5',
-                  color: hasOrder ? '#991b1b' : '#166534',
-                  border: 'none',
-                  borderRadius: '16px',
-                  cursor: 'pointer'
-                }}
-              >
-                Table {n}
-                {hasOrder && ' • Active'}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
-      <button onClick={() => setSelectedTable(null)} style={{ padding: '1rem 2rem', background: '#6b7280', color: 'white', borderRadius: '12px' }}>
-        ← Back
-      </button>
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-100 p-6">
+      <h1 className="text-5xl font-bold text-center mb-8 text-emerald-800">Active Order</h1>
 
-      <h2 style={{ fontSize: '2.5rem', margin: '1rem 0' }}>
-        {isEditing ? 'Edit Order' : 'New Order'} — Table {selectedTable}
-      </h2>
-      {isEditing && <p style={{ color: '#dc2626', fontWeight: 'bold' }}>This will resend to kitchen</p>}
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', marginTop: '2rem' }}>
-        <div>
-          <h3>Menu</h3>
-          {menu.categories.map(cat => (
-            <div key={cat.id}>
-              <h4>{cat.name}</h4>
-              {cat.items.filter(i => i.enabled).map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => addItem(item)}
-                  style={{ display: 'block', width: '100%', padding: '1rem', margin: '0.5rem 0', background: '#3b82f6', color: 'white', borderRadius: '8px' }}
-                >
-                  + {item.name} — ${item.price.toFixed(2)}
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-
-        <div>
-          <h3>Current Order</h3>
-          <div style={{ background: 'white', padding: '1.5rem', borderRadius: '16px', minHeight: '400px' }}>
-            {currentOrder.items.length === 0 ? (
-              <p>No items</p>
-            ) : (
-              currentOrder.items.map((item, i) => (
-                <div key={i} style={{ padding: '0.75rem 0', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between' }}>
-                  <span>{item.qty || 1}× {item.name}</span>
-                  <button onClick={() => removeItem(i)} style={{ color: '#ef4444' }}>Remove</button>
-                </div>
-              ))
-            )}
-            <textarea
-              placeholder="Note (e.g. No onions)"
-              value={currentOrder.note}
-              onChange={e => setCurrentOrder({ ...currentOrder, note: e.target.value })}
-              style={{ width: '100%', marginTop: '1rem', padding: '1rem' }}
-            />
-          </div>
-
+      {/* Table Selection */}
+      <div className="grid grid-cols-4 gap-6 mb-10 max-w-4xl mx-auto">
+        {[1, 2, 3, 4, 5, 6, 7, 8].map(num => (
           <button
-            onClick={sendToKitchen}
-            style={{
-              width: '100%',
-              padding: '1.5rem',
-              marginTop: '1rem',
-              background: isEditing ? '#f59e0b' : '#10b981',
-              color: 'white',
-              fontSize: '1.5rem',
-              fontWeight: 'bold',
-              border: 'none',
-              borderRadius: '16px'
-            }}
+            key={num}
+            onClick={() => setSelectedTable(num)}
+            className={`p-10 text-3xl font-bold rounded-2xl transition-all ${
+              selectedTable === num
+                ? 'bg-emerald-600 text-white shadow-2xl scale-110'
+                : 'bg-white hover:bg-emerald-100 shadow-xl'
+            }`}
           >
-            {isEditing ? 'UPDATE & RESEND' : 'SEND TO KITCHEN'}
+            Table {num}
+          </button>
+        ))}
+      </div>
+
+      {selectedTable && (
+        <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-2xl p-8">
+          <h2 className="text-4xl font-bold mb-6">Table {selectedTable}</h2>
+          {/* Your existing menu items, add to order, etc. */}
+          <button
+            onClick={sendOrder}
+            className="w-full mt-8 bg-emerald-600 text-white py-6 text-3xl font-bold rounded-2xl hover:bg-emerald-700"
+          >
+            SEND ORDER TO KITCHEN
           </button>
         </div>
+      )}
+
+      {/* Live Orders List */}
+      <div className="mt-16 max-w-6xl mx-auto">
+        <h2 className="text-4xl font-bold mb-6">Active Orders</h2>
+        {orders.map(order => (
+          <div key={order.id} className="bg-white p-6 rounded-xl shadow mb-4">
+            <div className="font-bold text-2xl">Table {order.table_number}</div>
+            <div>{order.items.length} items • {order.status}</div>
+          </div>
+        ))}
       </div>
     </div>
   );
