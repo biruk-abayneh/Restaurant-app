@@ -95,3 +95,9 @@ export const useMenu = () => {
   if (!context) throw new Error('useMenu must be used within MenuProvider');
   return context;
 };
+
+export const useMenuAdmin = () => {
+  const context = useContext(MenuContext);
+  if (!context) throw new Error('useMenuAdmin must be used within MenuProvider');
+  return context;
+};
