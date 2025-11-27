@@ -20,8 +20,9 @@ export function MenuProvider({ children }) {
 
       if (error) throw error;
 
+      console.log(menu);
       setMenu(data || []);
-      
+            
       // Extract unique categories
       const uniqueCategories = [...new Set(data?.map(item => item.category) || [])];
       setCategories(uniqueCategories);
