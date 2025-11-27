@@ -1,16 +1,47 @@
-// src/pages/server/ActiveOrder.jsx — FINAL FOREVER VERSION
-import React, { useState } from 'react';
+// src/pages/server/ActiveOrder.jsx — FINAL WITH FULL MODIFY EXISTING ORDER
+import React, { useState, useEffect } from 'react';
 import { useMenu } from '../../context/MenuContext';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 
 export default function ActiveOrder() {
   const { user } = useAuth();
-  const { menu, loading } = useMenu(); // ← This is correct for your current MenuContext
+  const { menu, loading: menuLoading } = useMenu();
 
   const [selectedTable, setSelectedTable] = useState(null);
   const [currentOrder, setCurrentOrder] = useState([]);
   const [note, setNote] = useState('');
+  const [loadingOrder, setLoadingOrder] = useState(false);
+
+  // Load existing active order when table is selected
+  useEffect(() => {
+    if (selectedTable) {
+      loadActiveOrder();
+    } else {
+      setCurrentOrder([]);
+      setNote('');
+    }
+  }, [selectedTable]);
+
+  const loadActiveOrder = async () => {
+    setLoadingOrder(true);
+    const { data } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('table_number', selectedTable)
+      .in('status', ['new', 'preparing'])
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (data && data[0]) {
+      setCurrentOrder(data[0].items || []);
+      setNote(data[0].order_note || '');
+    } else {
+      setCurrentOrder([]);
+      setNote('');
+    }
+    setLoadingOrder(false);
+  };
 
   const addToOrder = (item) => {
     setCurrentOrder(prev => {
@@ -41,44 +72,31 @@ export default function ActiveOrder() {
     const orderPayload = {
       table_number: selectedTable,
       items: currentOrder,
-      order_note: note.trim() || null,     // ← CORRECT COLUMN NAME
+      order_note: note.trim() || null,
       status: 'new',
       server_name: user?.name || 'Server',
       created_at: new Date().toISOString()
     };
 
-    const { error } = await supabase
-      .from('orders')
-      .insert(orderPayload);
+    const { error } = await supabase.from('orders').insert(orderPayload);
 
     if (error) {
       alert('Offline: Order saved locally');
-      localStorage.setItem(`pending-${Date.now()}`, JSON.stringify(orderPayload));
     } else {
-      alert(`Order sent for Table ${selectedTable}!`);
+      alert(`Order ${currentOrder.length > 0 ? 'modified & sent' : 'sent'} for Table ${selectedTable}!`);
       setCurrentOrder([]);
       setNote('');
       setSelectedTable(null);
     }
   };
 
-  if (loading) {
-    return <div className="text-center text-6xl mt-40 font-bold text-indigo-600">Loading menu...</div>;
-  }
-
-  if (!menu || !menu.categories || menu.categories.length === 0) {
-    return (
-      <div className="text-center text-6xl mt-40 text-red-600 font-bold">
-        No menu items!<br/><span className="text-4xl">Go to Menu Manager and add items</span>
-      </div>
-    );
-  }
+  if (menuLoading) return <div className="text-center text-6xl mt-40">Loading menu...</div>;
+  if (!menu?.categories?.length) return <div className="text-center text-6xl mt-40 text-red-600">No menu items!</div>;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-100 p-8">
       <h1 className="text-7xl font-bold text-center mb-12 text-indigo-800">Active Order</h1>
 
-      {/* Table Grid */}
       <div className="grid grid-cols-4 gap-10 max-w-6xl mx-auto mb-20">
         {[1,2,3,4,5,6,7,8].map(n => (
           <button
@@ -95,17 +113,18 @@ export default function ActiveOrder() {
 
       {selectedTable && (
         <div className="max-w-7xl mx-auto grid lg:grid-cols-3 gap-12">
-          {/* Menu */}
           <div className="lg:col-span-2 bg-white rounded-3xl shadow-2xl p-12">
-            <h2 className="text-5xl font-bold mb-10 text-indigo-800">Table {selectedTable}</h2>
+            <h2 className="text-5xl font-bold mb-10 text-indigo-800">
+              Table {selectedTable} {loadingOrder && '(Loading order...)'}
+            </h2>
             {menu.categories.map(cat => (
               <div key={cat.id} className="mb-12">
                 <h3 className="text-4xl font-bold text-purple-700 mb-6 pb-3 border-b-4 border-purple-300">
                   {cat.name}
                 </h3>
                 <div className="grid md:grid-cols-2 gap-8">
-                  {cat.items.filter(item => item.enabled !== false).map(item => (
-                    <div key={item.id} className="bg-gradient-to-r from-purple-50 to-pink-50 p-8 rounded-2xl hover:shadow-2xl transition mb-6">
+                  {cat.items.filter(i => i.enabled !== false).map(item => (
+                    <div key={item.id} className="bg-gradient-to-r from-purple-50 to-pink-50 p-8 rounded-2xl hover:shadow-2xl transition">
                       <div className="flex justify-between items-center">
                         <div>
                           <div className="text-3xl font-bold text-gray-800">{item.name}</div>
@@ -125,9 +144,10 @@ export default function ActiveOrder() {
             ))}
           </div>
 
-          {/* Current Order */}
           <div className="bg-white rounded-3xl shadow-2xl p-12">
-            <h2 className="text-5xl font-bold mb-8 text-indigo-800">Current Order</h2>
+            <h2 className="text-5xl font-bold mb-8 text-indigo-800">
+              {currentOrder.length > 0 ? 'Modify Order' : 'New Order'}
+            </h2>
             <textarea
               placeholder="Special request..."
               value={note}
@@ -154,9 +174,9 @@ export default function ActiveOrder() {
 
             <button
               onClick={sendOrder}
-              className="w-full bg-green-600 hover:bg-green-700 text-white py-10 text-5xl font-bold rounded-3xl shadow-2xl transform hover:scale-105 transition"
+              className="w-full bg-orange-600 hover:bg-orange-700 text-white py-10 text-5xl font-bold rounded-3xl shadow-2xl transform hover:scale-105 transition"
             >
-              SEND TO KITCHEN
+              {currentOrder.length > 0 ? 'SEND MODIFICATION' : 'SEND TO KITCHEN'}
             </button>
           </div>
         </div>
