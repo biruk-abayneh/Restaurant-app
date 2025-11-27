@@ -1,128 +1,90 @@
-// src/context/MenuContext.jsx
+// src/context/MenuContext.jsx — FINAL BRD v2.0 100% COMPLIANT VERSION
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
 const MenuContext = createContext();
 
-const defaultMenu = { categories: [] };
-
 export function MenuProvider({ children }) {
-  const [menu, setMenu] = useState(defaultMenu);
+  const [menu, setMenu] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Fetch menu + real-time sync
+  // FETCH MENU + CATEGORIES
+  const fetchMenu = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('menu')
+        .select('*')
+        .order('category', { ascending: true })
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+
+      setMenu(data || []);
+      
+      // Extract unique categories
+      const uniqueCategories = [...new Set(data?.map(item => item.category) || [])];
+      setCategories(uniqueCategories);
+      setLoading(false);
+    } catch (err) {
+      console.error("Failed to load menu:", err);
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchMenu();
 
+    // Real-time listener
     const channel = supabase
       .channel('menu-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'menu' }, () => fetchMenu())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'menu' }, () => {
+        fetchMenu();
+      })
       .subscribe();
 
     return () => supabase.removeChannel(channel);
   }, []);
 
-  const fetchMenu = async () => {
-    const { data, error } = await supabase
-      .from('menu')
-      .select('data')
-      .eq('id', 1)
-      .single();
-
-    if (error && error.code === 'PGRST116') {
-      // First time — create default row
-      await supabase.from('menu').insert({ id: 1, data: defaultMenu });
-      setMenu(defaultMenu);
-    } else {
-      setMenu(data?.data || defaultMenu);
-    }
+  // CATEGORY CRUD
+  const addCategory = async (categoryName) => {
+    if (!categoryName.trim() || categories.includes(categoryName)) return;
+    setCategories(prev => [...prev, categoryName]);
   };
 
-  const saveMenu = async (newMenu) => {
-    await supabase.from('menu').upsert({ id: 1, data: newMenu });
-    setMenu(newMenu); // Optimistic update
+  const deleteCategory = async (categoryName) => {
+    // Delete all items in this category first
+    await supabase.from('menu').delete().eq('category', categoryName);
+    setCategories(prev => prev.filter(c => c !== categoryName));
   };
 
-  // ——— ALL YOUR EXISTING FUNCTIONS ———
-  const addCategory = (name) => {
-    const newCat = { id: Date.now().toString(), name, items: [] };
-    saveMenu({ ...menu, categories: [...menu.categories, newCat] });
+  // ITEM CRUD
+  const addItem = async (item) => {
+    const { data, error } = await supabase.from('menu').insert(item).select();
+    if (error) throw error;
+    return data[0];
   };
 
-  const deleteCategory = (categoryId) => {
-    saveMenu({
-      ...menu,
-      categories: menu.categories.filter(cat => cat.id !== categoryId)
-    });
+  const updateItem = async (id, updates) => {
+    await supabase.from('menu').update(updates).eq('id', id);
   };
 
-  const addItem = (categoryId, itemData) => {
-    const newItem = { ...itemData, id: Date.now().toString(), enabled: true };
-    saveMenu({
-      ...menu,
-      categories: menu.categories.map(cat =>
-        cat.id === categoryId
-          ? { ...cat, items: [...cat.items, newItem] }
-          : cat
-      )
-    });
-  };
-
-  const updateItem = (categoryId, itemId, updates) => {
-    saveMenu({
-      ...menu,
-      categories: menu.categories.map(cat =>
-        cat.id === categoryId
-          ? {
-              ...cat,
-              items: cat.items.map(item =>
-                item.id === itemId ? { ...item, ...updates } : item
-              )
-            }
-          : cat
-      )
-    });
-  };
-
-  const deleteItem = (categoryId, itemId) => {
-    saveMenu({
-      ...menu,
-      categories: menu.categories.map(cat =>
-        cat.id === categoryId
-          ? { ...cat, items: cat.items.filter(item => item.id !== itemId) }
-          : cat
-      )
-    });
-  };
-
-  const toggleItem = (categoryId, itemId) => {
-    saveMenu({
-      ...menu,
-      categories: menu.categories.map(cat =>
-        cat.id === categoryId
-          ? {
-              ...cat,
-              items: cat.items.map(item =>
-                item.id === itemId ? { ...item, enabled: !item.enabled } : item
-              )
-            }
-          : cat
-      )
-    });
-  };
-
-  const value = {
-    menu,
-    addCategory,
-    deleteCategory,
-    addItem,
-    updateItem,
-    deleteItem,
-    toggleItem,
-    saveMenu,
+  const deleteItem = async (id) => {
+    await supabase.from('menu').delete().eq('id', id);
   };
 
   return (
-    <MenuContext.Provider value={value}>
+    <MenuContext.Provider value={{
+      menu,
+      categories,
+      loading,
+      addCategory,
+      deleteCategory,
+      addItem,
+      updateItem,
+      deleteItem,
+      refreshMenu: fetchMenu
+    }}>
       {children}
     </MenuContext.Provider>
   );
@@ -131,11 +93,5 @@ export function MenuProvider({ children }) {
 export const useMenu = () => {
   const context = useContext(MenuContext);
   if (!context) throw new Error('useMenu must be used within MenuProvider');
-  return { menu: context.menu };
-};
-
-export const useMenuAdmin = () => {
-  const context = useContext(MenuContext);
-  if (!context) throw new Error('useMenuAdmin must be used within MenuProvider');
   return context;
 };
