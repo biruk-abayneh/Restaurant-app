@@ -63,8 +63,10 @@ export default function ActiveOrder() {
   }
 
   if (!menu.length) {
+    console.log(menu.length);
     return <div className="text-center text-6xl mt-40 font-bold text-red-600">No menu items! Add in Menu Manager</div>;
   }
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
