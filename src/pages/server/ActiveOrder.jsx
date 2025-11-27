@@ -58,9 +58,7 @@ export default function ActiveOrder() {
     }
   };
 
-  if (!menu.length) {
-    return <div className="text-center text-4xl mt-20">Loading menu...</div>;
-  }
+  
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
