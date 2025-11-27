@@ -1,4 +1,4 @@
-// src/pages/server/ActiveOrder.jsx — FINAL 100% BRD v2.0 COMPLIANT
+// src/pages/server/ActiveOrder.jsx — FINAL FOREVER VERSION
 import React, { useState } from 'react';
 import { useMenu } from '../../context/MenuContext';
 import { useAuth } from '../../context/AuthContext';
@@ -6,12 +6,7 @@ import { supabase } from '../../lib/supabase';
 
 export default function ActiveOrder() {
   const { user } = useAuth();
-  const menuData = useMenu();
-
-  // SAFELY extract menu (supports both flat & JSON structures)
-  const menuObj = menuData.menu?.categories ? menuData.menu : menuData;
-  const categories = menuObj.categories || [];
-  const loading = menuData.loading || false;
+  const { menu, loading } = useMenu(); // ← This is correct for your current MenuContext
 
   const [selectedTable, setSelectedTable] = useState(null);
   const [currentOrder, setCurrentOrder] = useState([]);
@@ -30,9 +25,7 @@ export default function ActiveOrder() {
   const decreaseQty = (id) => {
     setCurrentOrder(prev => {
       const item = prev.find(i => i.id === id);
-      if (!item || item.qty <= 1) {
-        return prev.filter(i => i.id !== id);
-      }
+      if (!item || item.qty <= 1) return prev.filter(i => i.id !== id);
       return prev.map(i => i.id === id ? { ...i, qty: i.qty - 1 } : i);
     });
   };
@@ -42,13 +35,13 @@ export default function ActiveOrder() {
   };
 
   const sendOrder = async () => {
-    if (!selectedTable) return alert('Please select a table');
-    if (currentOrder.length === 0) return alert('Please add at least one item');
+    if (!selectedTable) return alert('Select a table');
+    if (currentOrder.length === 0) return alert('Add items');
 
     const orderPayload = {
       table_number: selectedTable,
       items: currentOrder,
-      order_note: note.trim() || null,        // CORRECT COLUMN NAME
+      order_note: note.trim() || null,     // ← CORRECT COLUMN NAME
       status: 'new',
       server_name: user?.name || 'Server',
       created_at: new Date().toISOString()
@@ -59,11 +52,10 @@ export default function ActiveOrder() {
       .insert(orderPayload);
 
     if (error) {
-      console.error("Order insert failed:", error);
       alert('Offline: Order saved locally');
-      localStorage.setItem(`pending-order-${Date.now()}`, JSON.stringify(orderPayload));
+      localStorage.setItem(`pending-${Date.now()}`, JSON.stringify(orderPayload));
     } else {
-      alert(`Order sent to kitchen for Table ${selectedTable}!`);
+      alert(`Order sent for Table ${selectedTable}!`);
       setCurrentOrder([]);
       setNote('');
       setSelectedTable(null);
@@ -71,14 +63,13 @@ export default function ActiveOrder() {
   };
 
   if (loading) {
-    return <div className="text-center text-6xl mt-40 text-indigo-600 font-bold">Loading menu...</div>;
+    return <div className="text-center text-6xl mt-40 font-bold text-indigo-600">Loading menu...</div>;
   }
 
-  if (categories.length === 0) {
+  if (!menu || !menu.categories || menu.categories.length === 0) {
     return (
       <div className="text-center text-6xl mt-40 text-red-600 font-bold">
-        No menu items!<br />
-        <span className="text-4xl">Add items in Menu Manager</span>
+        No menu items!<br/><span className="text-4xl">Go to Menu Manager and add items</span>
       </div>
     );
   }
@@ -107,14 +98,14 @@ export default function ActiveOrder() {
           {/* Menu */}
           <div className="lg:col-span-2 bg-white rounded-3xl shadow-2xl p-12">
             <h2 className="text-5xl font-bold mb-10 text-indigo-800">Table {selectedTable}</h2>
-            {categories.map(cat => (
-              <div key={cat.id || cat.name} className="mb-12">
+            {menu.categories.map(cat => (
+              <div key={cat.id} className="mb-12">
                 <h3 className="text-4xl font-bold text-purple-700 mb-6 pb-3 border-b-4 border-purple-300">
                   {cat.name}
                 </h3>
                 <div className="grid md:grid-cols-2 gap-8">
-                  {(cat.items || []).filter(item => item.enabled !== false).map(item => (
-                    <div key={item.id} className="bg-gradient-to-r from-purple-50 to-pink-50 p-8 rounded-2xl hover:shadow-2xl transition">
+                  {cat.items.filter(item => item.enabled !== false).map(item => (
+                    <div key={item.id} className="bg-gradient-to-r from-purple-50 to-pink-50 p-8 rounded-2xl hover:shadow-2xl transition mb-6">
                       <div className="flex justify-between items-center">
                         <div>
                           <div className="text-3xl font-bold text-gray-800">{item.name}</div>
@@ -138,10 +129,10 @@ export default function ActiveOrder() {
           <div className="bg-white rounded-3xl shadow-2xl p-12">
             <h2 className="text-5xl font-bold mb-8 text-indigo-800">Current Order</h2>
             <textarea
-              placeholder="Special request (e.g. no onion, extra spicy)"
+              placeholder="Special request..."
               value={note}
               onChange={e => setNote(e.target.value)}
-              className="w-full p-6 border-4 border-indigo-200 rounded-2xl text-2xl mb-8 resize-none"
+              className="w-full p-6 border-4 border-indigo-200 rounded-2xl text-2xl mb-8"
               rows="4"
             />
             <div className="space-y-6 mb-10 max-h-96 overflow-y-auto">
@@ -151,7 +142,7 @@ export default function ActiveOrder() {
                     <button onClick={() => decreaseQty(item.id)} className="text-5xl font-bold text-red-600">−</button>
                     <span className="text-4xl font-bold">{item.qty}</span>
                     <button onClick={() => addToOrder(item)} className="text-5xl font-bold text-green-600">+</button>
-                    <span className="text-2xl ml-4 font-medium">{item.name}</span>
+                    <span className="text-2xl ml-4">{item.name}</span>
                   </div>
                   <div className="text-right">
                     <div className="text-3xl font-bold text-green-600">ETB {item.price * item.qty}</div>
