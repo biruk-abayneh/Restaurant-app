@@ -36,7 +36,7 @@ export default function ActiveOrder() {
     const order = {
       table_number: selectedTable,
       items: currentOrder,
-      note: note,
+      order_note: note,
       status: 'new',
       server_name: user?.name || 'Server',
       created_at: new Date().toISOString()
