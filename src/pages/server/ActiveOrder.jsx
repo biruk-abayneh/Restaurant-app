@@ -47,7 +47,7 @@ export default function ActiveOrder() {
     const orderPayload = {
       table_number: selectedTable,
       items: currentOrder,
-      note: note || null,
+      order_note: note || null,
       status: 'new', // always new when sent from server
       server_name: user?.name || 'Server',
       created_at: new Date().toISOString()
