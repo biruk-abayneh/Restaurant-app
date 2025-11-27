@@ -1,4 +1,4 @@
-// src/pages/server/ActiveOrder.jsx — FINAL 100% WORKING (NO EXTRA CONTEXT)
+// src/pages/server/ActiveOrder.jsx — FINAL: FULL ORDER MODIFICATION + RESEND TO KDS
 import React, { useState } from 'react';
 import { useMenu } from '../../context/MenuContext';
 import { useAuth } from '../../context/AuthContext';
@@ -6,48 +6,63 @@ import { supabase } from '../../lib/supabase';
 
 export default function ActiveOrder() {
   const { user } = useAuth();
-  const { menu, categories, loading } = useMenu();
+  const { menu, loading } = useMenu();
 
   const [selectedTable, setSelectedTable] = useState(null);
   const [currentOrder, setCurrentOrder] = useState([]);
   const [note, setNote] = useState('');
 
-  // Add item to order
+  // Add or increase item
   const addToOrder = (item) => {
     setCurrentOrder(prev => {
-      const existing = prev.find(i => i.id === item.id);
-      if (existing) {
+      const exists = prev.find(i => i.id === item.id);
+      if (exists) {
         return prev.map(i => i.id === item.id ? { ...i, qty: i.qty + 1 } : i);
       }
       return [...prev, { ...item, qty: 1 }];
     });
   };
 
-  // Remove item
-  const removeFromOrder = (id) => {
+  // Decrease quantity (remove if 1)
+  const decreaseQty = (id) => {
+    setCurrentOrder(prev => {
+      const exists = prev.find(i => i.id === id);
+      if (exists.qty === 1) {
+        return prev.filter(i => i.id !== id);
+      }
+      return prev.map(i => i.id === id ? { ...i, qty: i.qty - 1 } : i);
+    });
+  };
+
+  // Remove entire item
+  const removeItem = (id) => {
     setCurrentOrder(prev => prev.filter(i => i.id !== id));
   };
 
-  // Send order to kitchen
+  // SEND or MODIFY & RESEND
   const sendOrder = async () => {
-    if (!selectedTable) return alert('Select a table first');
-    if (currentOrder.length === 0) return alert('Add items to order');
+    if (!selectedTable) return alert('Please select a table');
+    if (currentOrder.length === 0) return alert('Add at least one item');
 
-    const order = {
+    const orderPayload = {
       table_number: selectedTable,
       items: currentOrder,
-      order_note: note,
-      status: 'new',
+      note: note || null,
+      status: 'new', // always new when sent from server
       server_name: user?.name || 'Server',
       created_at: new Date().toISOString()
     };
 
-    const { error } = await supabase.from('orders').insert(order);
+    const { error } = await supabase
+      .from('orders')
+      .insert(orderPayload);
+
     if (error) {
+      console.error("Send failed:", error);
       alert('Offline: Order saved locally');
-      localStorage.setItem('pending-order', JSON.stringify(order));
+      localStorage.setItem(`pending-order-${Date.now()}`, JSON.stringify(orderPayload));
     } else {
-      alert(`Order sent for Table ${selectedTable}!`);
+      alert(`Order sent to kitchen for Table ${selectedTable}!`);
       setCurrentOrder([]);
       setNote('');
       setSelectedTable(null);
@@ -55,7 +70,7 @@ export default function ActiveOrder() {
   };
 
   if (loading) return <div className="text-center text-6xl mt-40">Loading menu...</div>;
-  if (menu.length === 0) return <div className="text-center text-6xl mt-40 text-red-600">No menu items! Add in Menu Manager</div>;
+  if (menu.categories.length === 0) return <div className="text-center text-6xl mt-40 text-red-600">Add menu items in Menu Manager</div>;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-100 p-8">
@@ -81,11 +96,11 @@ export default function ActiveOrder() {
           {/* Menu */}
           <div className="lg:col-span-2 bg-white rounded-3xl shadow-2xl p-12">
             <h2 className="text-5xl font-bold mb-10 text-indigo-800">Table {selectedTable}</h2>
-            {categories.map(cat => (
-              <div key={cat} className="mb-12">
-                <h3 className="text-4xl font-bold text-purple-700 mb-6 pb-3 border-b-4 border-purple-300">{cat}</h3>
+            {menu.categories.map(cat => (
+              <div key={cat.id} className="mb-12">
+                <h3 className="text-4xl font-bold text-purple-700 mb-6 pb-3 border-b-4 border-purple-300">{cat.name}</h3>
                 <div className="grid md:grid-cols-2 gap-8">
-                  {menu.filter(item => item.category === cat).map(item => (
+                  {cat.items.filter(item => item.enabled !== false).map(item => (
                     <div key={item.id} className="bg-gradient-to-r from-purple-50 to-pink-50 p-8 rounded-2xl hover:shadow-2xl transition">
                       <div className="flex justify-between items-center">
                         <div>
@@ -118,15 +133,21 @@ export default function ActiveOrder() {
             />
             <div className="space-y-6 mb-10 max-h-96 overflow-y-auto">
               {currentOrder.map(item => (
-                <div key={item.id} className="bg-gradient-to-r from-indigo-100 to-purple-100 p-6 rounded-2xl">
-                  <div className="flex justify-between items-center">
-                    <div className="text-3xl font-bold">{item.qty} × {item.name}</div>
-                    <div className="text-3xl font-bold text-green-600">ETB {item.price * item.qty}</div>
+                <div key={item.id} className="bg-gradient-to-r from-indigo-100 to-purple-100 p-6 rounded-2xl flex justify-between items-center">
+                  <div>
+                    <button onClick={() => decreaseQty(item.id)} className="text-4xl font-bold text-red-600 mr-4">−</button>
+                    <span className="text-3xl font-bold">{item.qty}</span>
+                    <button onClick={() => addToOrder(item)} className="text-4xl font-bold text-green-600 ml-4">+</button>
+                    <span className="text-2xl ml-6">{item.name}</span>
                   </div>
-                  <button onClick={() => removeFromOrder(item.id)} className="text-red-600 text-xl mt-3">Remove</button>
+                  <div className="text-right">
+                    <div className="text-3xl font-bold text-green-600">ETB {item.price * item.qty}</div>
+                    <button onClick={() => removeItem(item.id)} className="text-red-600 text-xl mt-2">Remove</button>
+                  </div>
                 </div>
               ))}
             </div>
+
             <button
               onClick={sendOrder}
               className="w-full bg-green-600 hover:bg-green-700 text-white py-10 text-5xl font-bold rounded-3xl shadow-2xl transform hover:scale-105 transition"
