@@ -1,268 +1,125 @@
-// src/pages/kitchen/KDS.jsx
-import React, { useEffect, useState, useRef } from 'react';
-import { useOrder } from '../../context/OrderContext';
+// src/pages/kitchen/KDS.jsx — FINAL VERSION (REAL-TIME + SOUND + COLORS)
+import React, { useState, useEffect, useRef } from 'react';
+import { supabase } from '../../lib/supabase';
 
 export default function KDS() {
-  const { orders } = useOrder();
-  const audioRef = useRef(new Audio('/sounds/kitchen-bell.mp3'));
-  const prevNewCount = useRef(0);
+  const [orders, setOrders] = useState([]);
+  const audioRef = useRef(null);
 
-  // Filter only active orders (new + in progress)
-  const activeOrders = orders.filter(o => o.status === 'new' || o.status === 'in-progress');
-
-  // Play sound when new order arrives
   useEffect(() => {
-    const newCount = activeOrders.filter(o => o.status === 'new').length;
-    if (newCount > prevNewCount.current) {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(() => {});
-    }
-    prevNewCount.current = newCount;
-  }, [activeOrders]);
+    fetchOrders();
 
-  const markAsInProgress = (orderId) => {
-    // In real app, emit via socket
-    window.dispatchEvent(new CustomEvent('order-status-change', {
-      detail: { id: orderId, status: 'in-progress' }
-    }));
+    // Real-time subscription
+    const channel = supabase
+      .channel('orders-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
+        fetchOrders();
+        // Play bell sound on new order
+        if (payload.eventType === 'INSERT' && payload.new.status === 'new') {
+          if (audioRef.current) {
+            audioRef.current.currentTime = 0;
+            audioRef.current.play().catch(() => {});
+          }
+        }
+      })
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, []);
+
+  const fetchOrders = async () => {
+    const { data } = await supabase
+      .from('orders')
+      .select('*')
+      .in('status', ['new', 'preparing'])
+      .order('created_at', { ascending: true });
+
+    setOrders(data || []);
   };
 
-  const markAsReady = (orderId) => {
-    window.dispatchEvent(new CustomEvent('order-status-change', {
-      detail: { id: orderId, status: 'ready' }
-    }));
+  const updateStatus = async (id, status) => {
+    await supabase.from('orders').update({ status }).eq('id', id);
   };
 
-  // Sort: New first, then In Progress, then Ready
-  const sortedOrders = [...activeOrders].sort((a, b) => {
-    if (a.status === 'new' && b.status !== 'new') return -1;
-    if (a.status !== 'new' && b.status === 'new') return 1;
-    if (a.status === 'in-progress' && b.status === 'ready') return -1;
-    if (a.status === 'ready' && b.status === 'in-progress') return 1;
-    return new Date(a.timestamp) - new Date(b.timestamp);
-  });
+  const getColor = (status) => {
+    if (status === 'new') return 'bg-red-600';
+    if (status === 'preparing') return 'bg-yellow-500';
+    return 'bg-green-600';
+  };
+
+  const getTimeColor = (createdAt) => {
+    const minutes = (Date.now() - new Date(createdAt)) / 60000;
+    if (minutes > 10) return 'text-red-600';
+    if (minutes > 5) return 'text-yellow-600';
+    return 'text-green-600';
+  };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: '#0f172a',
-      color: 'white',
-      padding: '2rem',
-      fontFamily: 'system-ui, sans-serif'
-    }}>
-      {/* Header */}
-      <div style={{
-        textAlign: 'center',
-        marginBottom: '3rem',
-        padding: '2rem',
-        background: 'linear-gradient(135deg, #1e293b, #334155)',
-        borderRadius: '24px',
-        boxShadow: '0 20px 40px rgba(0,0,0,0.4)'
-      }}>
-        <h1 style={{
-          fontSize: '4.5rem',
-          fontWeight: '900',
-          margin: 0,
-          background: 'linear-gradient(to right, #fbbf24, #f59e0b)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent'
-        }}>
-          KITCHEN DISPLAY SYSTEM
-        </h1>
-        <p style={{ fontSize: '1.8rem', color: '#94a3b8', marginTop: '1rem' }}>
-          {new Date().toLocaleString()}
-        </p>
-      </div>
+    <div className="min-h-screen bg-gray-900 text-white p-8">
+      {/* Hidden audio for bell */}
+      <audio ref={audioRef} src="https://assets.mixkit.co/sfx/preview/mixkit-alarm-digital-clock-beep-989.mp3" />
 
-      {/* Orders Grid */}
-      <div style={{
-        display: 'grid',
-        gap: '2rem',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))',
-        maxWidth: '1600px',
-        margin: '0 auto'
-      }}>
-        {sortedOrders.length === 0 ? (
-          <div style={{
-            gridColumn: '1 / -1',
-            textAlign: 'center',
-            padding: '6rem',
-            fontSize: '2.5rem',
-            color: '#64748b'
-          }}>
-            No active orders — All caught up!
-          </div>
-        ) : (
-          sortedOrders.map(order => (
-            <div
-              key={order.id}
-              style={{
-                background: order.status === 'new' ? '#dc2626' :
-                          order.status === 'in-progress' ? '#f59e0b' : '#16a34a',
-                color: 'white',
-                borderRadius: '24px',
-                padding: '2rem',
-                boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
-                border: order.modified ? '8px solid #fbbf24' : 'none',
-                animation: order.status === 'new' ? 'pulse 2s infinite' : 'none',
-                position: 'relative'
-              }}
-            >
-              {/* Modified Alert */}
-              {order.modified && (
-                <div style={{
-                  position: 'absolute',
-                  top: '-12px',
-                  right: '20px',
-                  background: '#fbbf24',
-                  color: '#000',
-                  padding: '0.5rem 1rem',
-                  borderRadius: '50px',
-                  fontWeight: 'bold',
-                  fontSize: '1.1rem',
-                  boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
-                }}>
-                  MODIFIED BY {order.modifiedBy || order.serverName}
-                </div>
-              )}
+      <h1 className="text-6xl font-bold text-center mb-12 text-yellow-400">KITCHEN DISPLAY</h1>
 
-              {/* Header */}
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '1.5rem'
-              }}>
-                <h2 style={{ fontSize: '3rem', fontWeight: '900', margin: 0 }}>
-                  Table {order.tableNumber}
-                </h2>
-                <div style={{ textAlign: 'right' }}>
-                  <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>
-                    #{order.id.split('-').pop()}
-                  </p>
-                  <p style={{ fontSize: '1.2rem', opacity: 0.9 }}>
-                    {order.serverName}
-                  </p>
-                </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+        {orders.map(order => (
+          <div
+            key={order.id}
+            className={`${getColor(order.status)} rounded-3xl p-8 shadow-2xl transform hover:scale-105 transition-all`}
+          >
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h2 className="text-5xl font-bold">Table {order.table_number}</h2>
+                <p className="text-2xl mt-2 opacity-90">by {order.server_name}</p>
               </div>
-
-              {/* Items */}
-              <div style={{ margin: '1.5rem 0' }}>
-                {order.items.map((item, i) => (
-                  <div key={i} style={{
-                    background: 'rgba(255,255,255,0.15)',
-                    padding: '1rem',
-                    borderRadius: '12px',
-                    margin: '0.75rem 0',
-                    backdropFilter: 'blur(10px)'
-                  }}>
-                    <div style={{ fontSize: '1.8rem', fontWeight: 'bold' }}>
-                      {item.qty} × {item.name}
-                    </div>
-                    {item.modifiers?.length > 0 && (
-                      <p style={{ margin: '0.5rem 0', color: '#fbbf24' }}>
-                        + {item.modifiers.join(', ')}
-                      </p>
-                    )}
-                    {item.note && (
-                      <p style={{ color: '#fca5a5', fontStyle: 'italic', margin: '0.5rem 0' }}>
-                        "{item.note}"
-                      </p>
-                    )}
-                  </div>
-                ))}
+              <div className={`text-3xl font-bold ${getTimeColor(order.created_at)}`}>
+                {Math.floor((Date.now() - new Date(order.created_at)) / 60000)} min
               </div>
-
-              {/* Order Note */}
-              {order.orderNote && (
-                <div style={{
-                  background: 'rgba(0,0,0,0.3)',
-                  padding: '1rem',
-                  borderRadius: '12px',
-                  margin: '1rem 0',
-                  fontStyle: 'italic',
-                  borderLeft: '5px solid #fbbf24'
-                }}>
-                  {order.orderNote}
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div style={{ marginTop: '2rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                {order.status === 'new' && (
-                  <button
-                    onClick={() => markAsInProgress(order.id)}
-                    style={{
-                      padding: '1.5rem',
-                      background: '#f59e0b',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '16px',
-                      fontSize: '1.5rem',
-                      fontWeight: 'bold',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    START COOKING
-                  </button>
-                )}
-                {order.status !== 'ready' && (
-                  <button
-                    onClick={() => markAsReady(order.id)}
-                    style={{
-                      padding: '1.5rem',
-                      background: '#16a34a',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '16px',
-                      fontSize: '1.5rem',
-                      fontWeight: 'bold',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    READY FOR PICKUP
-                  </button>
-                )}
-                {order.status === 'ready' && (
-                  <div style={{
-                    padding: '1.5rem',
-                    background: '#166534',
-                    color: 'white',
-                    borderRadius: '16px',
-                    fontSize: '1.8rem',
-                    fontWeight: 'bold',
-                    textAlign: 'center'
-                  }}>
-                    READY
-                  </div>
-                )}
-              </div>
-
-              {/* Timestamp */}
-              <p style={{
-                textAlign: 'center',
-                marginTop: '1rem',
-                opacity: 0.8,
-                fontSize: '1.1rem'
-              }}>
-                {new Date(order.timestamp).toLocaleTimeString()}
-                {order.modified && ' → Modified'}
-              </p>
             </div>
-          ))
-        )}
+
+            {order.note && (
+              <div className="bg-black bg-opacity-30 rounded-2xl p-4 mb-6">
+                <p className="text-xl font-semibold">Note: {order.note}</p>
+              </div>
+            )}
+
+            <div className="space-y-4 mb-8">
+              {order.items.map((item, idx) => (
+                <div key={idx} className="bg-white bg-opacity-20 rounded-2xl p-4">
+                  <div className="flex justify-between">
+                    <span className="text-2xl font-bold">{item.qty} × {item.name}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-4">
+              {order.status === 'new' && (
+                <button
+                  onClick={() => updateStatus(order.id, 'preparing')}
+                  className="flex-1 bg-yellow-600 hover:bg-yellow-700 py-6 rounded-2xl text-3xl font-bold transition"
+                >
+                  START
+                </button>
+              )}
+              {order.status === 'preparing' && (
+                <button
+                  onClick={() => updateStatus(order.id, 'ready')}
+                  className="flex-1 bg-green-600 hover:bg-green-700 py-6 rounded-2xl text-3xl font-bold transition"
+                >
+                  READY
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* Sound */}
-      <audio ref={audioRef} preload="auto" />
-
-      {/* Pulse Animation */}
-      <style jsx>{`
-        @keyframes pulse {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-          50% { box-shadow: 0 0 0 30px rgba(239, 68, 68, 0); }
-        }
-      `}</style>
+      {orders.length === 0 && (
+        <div className="text-center text-6xl mt-40 text-gray-500">
+          No active orders
+        </div>
+      )}
     </div>
   );
 }
