@@ -39,11 +39,11 @@ export default function ActiveOrder() {
     };
 
     // Save to Supabase
-    const { error } = await fetch('https://YOUR-PROJECT.supabase.co/rest/v1/orders', {
+    const { error } = await fetch('https://jzepcgnlbdomrckielzz.supabase.co/rest/v1/orders', {
       method: 'POST',
       headers: {
-        'apikey': 'your-anon-key',
-        'Authorization': 'Bearer your-anon-key',
+        'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp6ZXBjZ25sYmRvbXJja2llbHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQwNDcxMjgsImV4cCI6MjA3OTYyMzEyOH0.rErcK3g-Z0XIbWi2q3MbC-JY6bUfa2FNEsgY_uic6ak',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp6ZXBjZ25sYmRvbXJja2llbHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQwNDcxMjgsImV4cCI6MjA3OTYyMzEyOH0.rErcK3g-Z0XIbWi2q3MbC-JY6bUfa2FNEsgY_uic6ak',
         'Content-Type': 'application/json',
         'Prefer': 'return=minimal'
       },
