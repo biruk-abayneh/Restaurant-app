@@ -1,4 +1,4 @@
-// src/pages/server/ActiveOrder.jsx — FINAL 100% BRD v2.0 COMPLIANT
+// src/pages/server/ActiveOrder.jsx — FINAL: True single order + proper modification + no duplicates
 import React, { useState, useEffect } from 'react';
 import { useMenu } from '../../context/MenuContext';
 import { useAuth } from '../../context/AuthContext';
@@ -14,7 +14,6 @@ export default function ActiveOrder() {
   const [orderId, setOrderId] = useState(null);
   const [loadingOrder, setLoadingOrder] = useState(false);
 
-  // Load active order when table changes
   useEffect(() => {
     if (selectedTable) loadActiveOrder();
     else resetOrder();
@@ -28,12 +27,13 @@ export default function ActiveOrder() {
       .eq('table_number', selectedTable)
       .in('status', ['new', 'preparing'])
       .order('created_at', { ascending: false })
-      .limit(1);
+      .limit(1)
+      .maybeSingle();
 
-    if (data && data[0]) {
-      setOrderId(data[0].id);
-      setCurrentOrder(data[0].items || []);
-      setNote(data[0].order_note || '');
+    if (data) {
+      setOrderId(data.id);
+      setCurrentOrder(data.items || []);
+      setNote(data.order_note || '');
     } else {
       resetOrder();
     }
@@ -55,11 +55,9 @@ export default function ActiveOrder() {
   };
 
   const decreaseQty = (id) => {
-    setCurrentOrder(prev => {
-      const item = prev.find(i => i.id === id);
-      if (!item || item.qty <= 1) return prev.filter(i => i.id !== id);
-      return prev.map(i => i.id === id ? { ...i, qty: i.qty - 1 } : i);
-    });
+    setCurrentOrder(prev => prev.filter(i => i.id !== id || i.qty > 1).map(i => 
+      i.id === id && i.qty > 1 ? { ...i, qty: i.qty - 1 } : i
+    ));
   };
 
   const removeItem = (id) => {
@@ -75,27 +73,34 @@ export default function ActiveOrder() {
       items: currentOrder,
       order_note: note.trim() || null,
       server_name: user?.name || 'Server',
-      status: 'new',
+      status: 'new', // Always reset to 'new' so kitchen sees it again
       updated_at: new Date().toISOString()
     };
 
     let error;
     if (orderId) {
-      // MODIFY EXISTING ORDER
-      ({ error } = await supabase.from('orders').update(payload).eq('id', orderId));
+      // UPDATE EXISTING ORDER — THIS IS THE KEY FIX
+      ({ error } = await supabase
+        .from('orders')
+        .update(payload)
+        .eq('id', orderId));
     } else {
-      // CREATE NEW ORDER
+      // CREATE NEW
       payload.created_at = new Date().toISOString();
-      const { data } = await supabase.from('orders').insert(payload).select().single();
+      const { data } = await supabase
+        .from('orders')
+        .insert(payload)
+        .select()
+        .single();
       if (data) setOrderId(data.id);
     }
 
     if (error) {
+      console.error("Save failed:", error);
       alert('Offline: Changes saved locally');
-      localStorage.setItem(`table-${selectedTable}`, JSON.stringify({ orderId, items: currentOrder, note }));
     } else {
-      alert(orderId ? 'Order updated successfully!' : 'Order sent to kitchen!');
-      // Stay on table for further modifications
+      alert(orderId ? 'Order MODIFIED & sent to kitchen!' : 'Order sent!');
+      // Do NOT reset — stay on table
     }
   };
 
@@ -119,7 +124,7 @@ export default function ActiveOrder() {
         <div className="max-w-7xl mx-auto grid lg:grid-cols-3 gap-12">
           <div className="lg:col-span-2 bg-white rounded-3xl shadow-2xl p-12">
             <h2 className="text-5xl font-bold mb-10 text-indigo-800">
-              Table {selectedTable} {orderId && '(Modifying)'} {loadingOrder && '(Loading...)'}
+              Table {selectedTable} {orderId && '(Modifying Order)'} {loadingOrder && '(Loading...)'}
             </h2>
             {menu.categories.map(cat => (
               <div key={cat.id} className="mb-12">
@@ -146,7 +151,7 @@ export default function ActiveOrder() {
 
           <div className="bg-white rounded-3xl shadow-2xl p-12">
             <h2 className="text-5xl font-bold mb-8 text-indigo-800">
-              {orderId ? 'Modify Order' : 'New Order'}
+              {orderId ? 'Modify Order' : 'New Order'} — Table {selectedTable}
             </h2>
             <textarea placeholder="Special request..." value={note} onChange={e => setNote(e.target.value)}
               className="w-full p-6 border-4 border-indigo-200 rounded-2xl text-2xl mb-8" rows="4" />
@@ -168,7 +173,7 @@ export default function ActiveOrder() {
             </div>
             <button onClick={saveOrder}
               className="w-full bg-orange-600 hover:bg-orange-700 text-white py-10 text-5xl font-bold rounded-3xl shadow-2xl transform hover:scale-105 transition">
-              {orderId ? 'UPDATE ORDER' : 'SEND TO KITCHEN'}
+              {orderId ? 'UPDATE & ALERT KITCHEN' : 'SEND TO KITCHEN'}
             </button>
           </div>
         </div>

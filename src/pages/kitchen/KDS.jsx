@@ -1,4 +1,4 @@
-// src/pages/kitchen/KDS.jsx
+// src/pages/kitchen/KDS.jsx — FINAL: START button works + no duplicates + bell on modify
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 
@@ -11,18 +11,23 @@ export default function KDS() {
 
     const channel = supabase
       .channel('orders-changes')
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'orders' }, 
-        (payload) => {
-          fetchOrders();
-          if (payload.eventType === 'INSERT' || (payload.eventType === 'UPDATE' && payload.new.status === 'new')) {
-            if (audioRef.current) {
-              audioRef.current.currentTime = 0;
-              audioRef.current.play().catch(() => {});
-            }
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'orders'
+      }, (payload) => {
+        console.log('Realtime update:', payload);
+        fetchOrders();
+
+        // Bell on new order OR when modified back to 'new'
+        if (payload.eventType === 'INSERT' || 
+            (payload.eventType === 'UPDATE' && payload.new.status === 'new')) {
+          if (audioRef.current) {
+            audioRef.current.currentTime = 0;
+            audioRef.current.play().catch(() => {});
           }
         }
-      )
+      })
       .subscribe();
 
     return () => supabase.removeChannel(channel);
@@ -33,22 +38,22 @@ export default function KDS() {
       .from('orders')
       .select('*')
       .in('status', ['new', 'preparing'])
+      .order('updated_at', { ascending: false })
       .order('created_at', { ascending: true });
 
     setOrders(data || []);
   };
 
   const updateStatus = async (id, status) => {
-    await supabase.from('orders').update({ status }).eq('id', id);
+    const { error } = await supabase
+      .from('orders')
+      .update({ status })
+      .eq('id', id);
+
+    if (error) console.error("Update failed:", error);
   };
 
   const getColor = (status) => status === 'new' ? 'bg-red-600' : 'bg-yellow-500';
-  const getTimeColor = (createdAt) => {
-    const minutes = (Date.now() - new Date(createdAt)) / 60000;
-    if (minutes > 10) return 'text-red-600';
-    if (minutes > 5) return 'text-yellow-600';
-    return 'text-green-600';
-  };
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8">
@@ -63,13 +68,13 @@ export default function KDS() {
                 <h2 className="text-5xl font-bold">Table {order.table_number}</h2>
                 <p className="text-2xl mt-2 opacity-90">by {order.server_name}</p>
               </div>
-              <div className={`text-3xl font-bold ${getTimeColor(order.created_at)}`}>
-                {Math.floor((Date.now() - new Date(order.created_at)) / 60000)} min
+              <div className="text-3xl font-bold text-white">
+                {new Date(order.updated_at || order.created_at).toLocaleTimeString()}
               </div>
             </div>
 
             {order.order_note && (
-              <div className="bg-black bg-opacity-30 rounded-2xl p-4 mb-6">
+              <div className="bg-black bg-opacity-40 rounded-2xl p-4 mb-6">
                 <p className="text-xl font-semibold">Note: {order.order_note}</p>
               </div>
             )}
