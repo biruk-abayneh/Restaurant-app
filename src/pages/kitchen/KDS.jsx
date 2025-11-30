@@ -19,7 +19,7 @@ export default function KDS() {
           // Bell logic stays the same
           if (audioRef.current) {
             audioRef.current.currentTime = 0;
-            audioRef.current.play().catch(() => {});
+            audioRef.current.play().catch(() => { });
           }
         }
       )
@@ -42,7 +42,7 @@ export default function KDS() {
   const handleStart = async (orderId) => {
     const { error } = await supabase
       .from('orders')
-      .update({ status: 'preparing' })
+      .update({ status: 'in_progress' })
       .eq('id', orderId);
 
     if (error) {
@@ -56,8 +56,12 @@ export default function KDS() {
     await supabase.from('orders').update({ status: 'ready' }).eq('id', orderId);
   };
 
-  const getCardColor = (status) => (status === 'new' ? 'bg-red-600' : 'bg-yellow-500');
-
+  const getCardColor = (status) => {
+    if (status === 'new') return 'bg-red-600';
+    if (status === 'in_progress') return 'bg-yellow-500';  // ← fixed
+    if (status === 'ready') return 'bg-green-600';
+    return 'bg-gray-600';
+  };
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8">
       <audio
@@ -118,7 +122,7 @@ export default function KDS() {
                   START COOKING
                 </button>
               )}
-              {order.status === 'preparing' && (
+              {order.status === 'in_progress' && (
                 <button
                   onClick={() => handleReady(order.id)}
                   className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 py-8 rounded-2xl text-4xl font-bold shadow-lg transform hover:scale-105 transition"
