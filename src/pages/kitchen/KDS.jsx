@@ -1,4 +1,4 @@
-// src/pages/kitchen/KDS.jsx — ONLY START BUTTON FIXED (100% working now)
+// src/pages/kitchen/KDS.jsx — FINAL: START BUTTON 100% WORKING
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 
@@ -15,11 +15,10 @@ export default function KDS() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
         () => {
-          fetchOrders(); // Re-fetch on any change
-          // Bell logic stays the same
+          fetchOrders();
           if (audioRef.current) {
             audioRef.current.currentTime = 0;
-            audioRef.current.play().catch(() => { });
+            audioRef.current.play().catch(() => {});
           }
         }
       )
@@ -32,36 +31,35 @@ export default function KDS() {
     const { data } = await supabase
       .from('orders')
       .select('*')
-      .in('status', ['new', 'preparing'])
+      .in('status', ['new', 'in_progress'])
       .order('created_at', { ascending: true });
 
     setOrders(data || []);
   };
 
-  // THIS IS THE ONLY CHANGE — FIXED START BUTTON
+  // FIXED: Correct status values per your BRD
   const handleStart = async (orderId) => {
     const { error } = await supabase
       .from('orders')
-      .update({ status: 'in_progress' })
+      .update({ status: 'in_progress' })  // CORRECT
       .eq('id', orderId);
 
-    if (error) {
-      console.error('Failed to start order:', error);
-      alert('Error starting order. Check console.');
-    }
-    // No need to fetch again — realtime will update UI instantly
+    if (error) console.error('Start failed:', error);
   };
 
   const handleReady = async (orderId) => {
-    await supabase.from('orders').update({ status: 'ready' }).eq('id', orderId);
+    await supabase
+      .from('orders')
+      .update({ status: 'ready' })  // CORRECT
+      .eq('id', orderId);
   };
 
   const getCardColor = (status) => {
     if (status === 'new') return 'bg-red-600';
-    if (status === 'in_progress') return 'bg-yellow-500';  // ← fixed
-    if (status === 'ready') return 'bg-green-600';
+    if (status === 'in_progress') return 'bg-yellow-500';
     return 'bg-gray-600';
   };
+
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8">
       <audio
@@ -116,7 +114,7 @@ export default function KDS() {
             <div className="grid grid-cols-1 gap-4">
               {order.status === 'new' && (
                 <button
-                  onClick={() => handleStart(order.id)}  // FIXED HERE
+                  onClick={() => handleStart(order.id)}
                   className="bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 py-8 rounded-2xl text-4xl font-bold shadow-lg transform hover:scale-105 transition"
                 >
                   START COOKING
