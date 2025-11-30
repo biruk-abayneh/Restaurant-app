@@ -31,7 +31,7 @@ export default function KDS() {
     const { data } = await supabase
       .from('orders')
       .select('*')
-      .in('status', ['new', 'in_progress'])
+      .in('status', ['new', 'in-progress'])
       .order('created_at', { ascending: true });
 
     setOrders(data || []);
@@ -41,7 +41,7 @@ export default function KDS() {
   const handleStart = async (orderId) => {
     const { error } = await supabase
       .from('orders')
-      .update({ status: 'in_progress' })  // CORRECT
+      .update({ status: 'in-progress' })  // CORRECT
       .eq('id', orderId);
 
     if (error) console.error('Start failed:', error);
@@ -56,7 +56,7 @@ export default function KDS() {
 
   const getCardColor = (status) => {
     if (status === 'new') return 'bg-red-600';
-    if (status === 'in_progress') return 'bg-yellow-500';
+    if (status === 'in-progress') return 'bg-yellow-500';
     return 'bg-gray-600';
   };
 
@@ -120,7 +120,7 @@ export default function KDS() {
                   START COOKING
                 </button>
               )}
-              {order.status === 'in_progress' && (
+              {order.status === 'in-progress' && (
                 <button
                   onClick={() => handleReady(order.id)}
                   className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 py-8 rounded-2xl text-4xl font-bold shadow-lg transform hover:scale-105 transition"
